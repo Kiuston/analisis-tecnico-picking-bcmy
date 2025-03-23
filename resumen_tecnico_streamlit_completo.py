@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -38,18 +37,22 @@ if uploaded_file:
         cols_buenas = columnas[:3]
         cols_malas = columnas[3:]
 
-        idx_buenas = [column_index_from_string(c) - 1 for c in cols_buenas]
-        idx_malas = [column_index_from_string(c) - 1 for c in cols_malas]
+        idx_buenas = [column_index_from_string(c) - 1 for c in cols_buenas if column_index_from_string(c) - 1 < df.shape[1]]
+        idx_malas = [column_index_from_string(c) - 1 for c in cols_malas if column_index_from_string(c) - 1 < df.shape[1]]
+
+        if not idx_buenas:
+            continue
 
         codigos = df.iloc[:, 0].astype(str).str.strip()
         buenas = df.iloc[:, idx_buenas].fillna(0).sum(axis=1)
-        malas = df.iloc[:, idx_malas].fillna(0).sum(axis=1)
+        malas = df.iloc[:, idx_malas].fillna(0).sum(axis=1) if idx_malas else pd.Series([0]*len(df))
 
         data = pd.DataFrame({
             "Codigo": codigos,
             "Unidades Buenas": buenas,
             "Unidades Defectuosas": malas
         })
+
         data = data.merge(codigos_ref, how="left", on="Codigo")
         data = data[data["Unidades Buenas"] > 0]
         data["Cajas Completas"] = (data["Unidades Buenas"] // data["Unidades por Caja"]).fillna(0).astype(int)
@@ -57,6 +60,10 @@ if uploaded_file:
         data["Técnico"] = tecnico
 
         resumen_total.append(data)
+
+    if not resumen_total:
+        st.warning("No se encontraron técnicos con datos válidos.")
+        st.stop()
 
     final_df = pd.concat(resumen_total, ignore_index=True)
     st.dataframe(final_df, use_container_width=True)
