@@ -18,7 +18,7 @@ if uploaded_file:
 
     codigos_ref = df[["CODIGO ADMIN", "Cajas"]].dropna()
     codigos_ref.columns = ["Codigo", "Unidades por Caja"]
-    codigos_ref["Codigo"] = codigos_ref["Codigo"].astype(str).str.strip().str.upper()
+    codigos_ref["Codigo"] = codigos_ref["Codigo"].astype(str).str.strip()
     codigos_ref = codigos_ref.drop_duplicates(subset="Codigo")
 
     tecnicos_columnas = {
@@ -43,9 +43,11 @@ if uploaded_file:
         if not idx_buenas:
             continue
 
-        codigos = df.iloc[:, 0].astype(str).str.strip().str.upper()
-        buenas = pd.to_numeric(df.iloc[:, idx_buenas].fillna(0).sum(axis=1), errors="coerce").fillna(0)
-        malas = pd.to_numeric(df.iloc[:, idx_malas].fillna(0).sum(axis=1), errors="coerce").fillna(0) if idx_malas else pd.Series([0]*len(df))
+        codigos = df.iloc[:, 0].astype(str).str.strip()
+        df_buenas = df.iloc[:, idx_buenas].apply(pd.to_numeric, errors='coerce').fillna(0)
+        df_malas = df.iloc[:, idx_malas].apply(pd.to_numeric, errors='coerce').fillna(0) if idx_malas else pd.DataFrame(0, index=df.index, columns=["empty"])
+        buenas = df_buenas.sum(axis=1).astype(int)
+        malas = df_malas.sum(axis=1).astype(int)
 
         data = pd.DataFrame({
             "Codigo": codigos,
@@ -54,10 +56,9 @@ if uploaded_file:
         })
 
         data = data.merge(codigos_ref, how="left", on="Codigo")
-        data = data[data["Unidades por Caja"].notnull()]
         data = data[data["Unidades Buenas"] > 0]
-        data["Cajas Completas"] = (data["Unidades Buenas"] // data["Unidades por Caja"]).astype(int)
-        data["Unidades Sobrantes"] = (data["Unidades Buenas"] % data["Unidades por Caja"]).astype(int)
+        data["Cajas Completas"] = (data["Unidades Buenas"] // data["Unidades por Caja"]).fillna(0).astype(int)
+        data["Unidades Sobrantes"] = (data["Unidades Buenas"] % data["Unidades por Caja"]).fillna(0).astype(int)
         data["Técnico"] = tecnico
 
         resumen_total.append(data)
@@ -69,12 +70,14 @@ if uploaded_file:
     final_df = pd.concat(resumen_total, ignore_index=True)
     st.dataframe(final_df, use_container_width=True)
 
-    st.subheader("📊 Gráficos por técnico")
+    st.subheader("📊 Gráficos y resumen por técnico")
 
     for tecnico in final_df["Técnico"].unique():
         df_tecnico = final_df[final_df["Técnico"] == tecnico]
-        total_buenas = df_tecnico["Unidades Buenas"].sum()
-        total_picking = df_tecnico["Unidades Sobrantes"].sum()
+        total_buenas = int(df_tecnico["Unidades Buenas"].sum())
+        total_picking = int(df_tecnico["Unidades Sobrantes"].sum())
+        total_def = int(df_tecnico["Unidades Defectuosas"].sum())
+        total_cajas = int(df_tecnico["Cajas Completas"].sum())
 
         st.markdown(f"#### Técnico: **{tecnico}**")
         col1, col2 = st.columns([1, 3])
@@ -90,8 +93,8 @@ if uploaded_file:
             st.pyplot(fig)
 
         with col2:
-            st.metric("Unidades Buenas", int(total_buenas))
-            st.metric("Unidades a Picking", int(total_picking))
-            st.metric("Cajas Completas", int(df_tecnico["Cajas Completas"].sum()))
-            st.metric("Unidades Defectuosas", int(df_tecnico["Unidades Defectuosas"].sum()))
-            st.metric("Total General", int(total_buenas + df_tecnico["Unidades Defectuosas"].sum()))
+            st.metric("Unidades Buenas", total_buenas)
+            st.metric("Unidades a Picking", total_picking)
+            st.metric("Cajas Completas", total_cajas)
+            st.metric("Unidades Defectuosas", total_def)
+            st.metric("Total General", total_buenas + total_def)
