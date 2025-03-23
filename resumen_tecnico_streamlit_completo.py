@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -45,13 +44,17 @@ if uploaded_file:
             continue
 
         codigos = df.iloc[:, 0].astype(str).str.strip()
-        buenas = pd.to_numeric(df.iloc[:, idx_buenas].fillna(0).sum(axis=1), errors="coerce").fillna(0)
-        malas = pd.to_numeric(df.iloc[:, idx_malas].fillna(0).sum(axis=1), errors="coerce").fillna(0) if idx_malas else pd.Series([0]*len(df))
+
+        df_buenas = df.iloc[:, idx_buenas].apply(pd.to_numeric, errors='coerce').fillna(0)
+        df_malas = df.iloc[:, idx_malas].apply(pd.to_numeric, errors='coerce').fillna(0) if idx_malas else pd.DataFrame(0, index=df.index, columns=[0])
+
+        buenas = df_buenas.sum(axis=1)
+        malas = df_malas.sum(axis=1)
 
         data = pd.DataFrame({
             "Codigo": codigos,
-            "Unidades Buenas": buenas.astype(int),
-            "Unidades Defectuosas": malas.astype(int)
+            "Unidades Buenas": buenas,
+            "Unidades Defectuosas": malas
         })
 
         data = data.merge(codigos_ref, how="left", on="Codigo")
@@ -75,6 +78,8 @@ if uploaded_file:
         df_tecnico = final_df[final_df["Técnico"] == tecnico]
         total_buenas = df_tecnico["Unidades Buenas"].sum()
         total_picking = df_tecnico["Unidades Sobrantes"].sum()
+        total_defectuosas = df_tecnico["Unidades Defectuosas"].sum()
+        total_general = total_buenas + total_defectuosas
 
         st.markdown(f"#### Técnico: **{tecnico}**")
         col1, col2 = st.columns([1, 3])
@@ -93,5 +98,5 @@ if uploaded_file:
             st.metric("Unidades Buenas", int(total_buenas))
             st.metric("Unidades a Picking", int(total_picking))
             st.metric("Cajas Completas", int(df_tecnico["Cajas Completas"].sum()))
-            st.metric("Unidades Defectuosas", int(df_tecnico["Unidades Defectuosas"].sum()))
-            st.metric("Total General", int(total_buenas + df_tecnico["Unidades Defectuosas"].sum()))
+            st.metric("Unidades Defectuosas", int(total_defectuosas))
+            st.metric("Total General", int(total_general))
