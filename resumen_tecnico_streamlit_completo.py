@@ -1,3 +1,4 @@
+
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -44,13 +45,13 @@ if uploaded_file:
             continue
 
         codigos = df.iloc[:, 0].astype(str).str.strip()
-        buenas = df.iloc[:, idx_buenas].fillna(0).sum(axis=1)
-        malas = df.iloc[:, idx_malas].fillna(0).sum(axis=1) if idx_malas else pd.Series([0]*len(df))
+        buenas = pd.to_numeric(df.iloc[:, idx_buenas].fillna(0).sum(axis=1), errors="coerce").fillna(0)
+        malas = pd.to_numeric(df.iloc[:, idx_malas].fillna(0).sum(axis=1), errors="coerce").fillna(0) if idx_malas else pd.Series([0]*len(df))
 
         data = pd.DataFrame({
             "Codigo": codigos,
-            "Unidades Buenas": buenas,
-            "Unidades Defectuosas": malas
+            "Unidades Buenas": buenas.astype(int),
+            "Unidades Defectuosas": malas.astype(int)
         })
 
         data = data.merge(codigos_ref, how="left", on="Codigo")
