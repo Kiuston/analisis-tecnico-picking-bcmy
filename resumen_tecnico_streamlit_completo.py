@@ -13,13 +13,18 @@ if uploaded_file:
         df = pd.read_excel(uploaded_file, sheet_name="LASER", header=16)
         st.success("✅ Hoja 'LASER' encontrada correctamente.")
     except Exception as e:
-        st.error("❌ No se pudo leer la hoja 'LASER'.")
+        st.error(f"❌ Error al leer la hoja 'LASER': {e}")
         st.stop()
 
-    codigos_ref = df[["CODIGO ADMIN", "Cajas"]].dropna()
-    codigos_ref.columns = ["Codigo", "Unidades por Caja"]
-    codigos_ref["Codigo"] = codigos_ref["Codigo"].astype(str).str.strip()
-    codigos_ref = codigos_ref.drop_duplicates(subset="Codigo")
+    try:
+        codigos_ref = pd.read_excel("Recyling and ecology diciembre.xlsx", sheet_name=0, header=16)
+        codigos_ref = codigos_ref[["CODIGO ADMIN", "Cajas"]].dropna()
+        codigos_ref.columns = ["Codigo", "Unidades por Caja"]
+        codigos_ref["Codigo"] = codigos_ref["Codigo"].astype(str).str.strip()
+        codigos_ref = codigos_ref.drop_duplicates(subset="Codigo")
+    except Exception as e:
+        st.error(f"❌ Error al cargar referencia de cajas: {e}")
+        st.stop()
 
     tecnicos_columnas = {
         "MAX": ("I", "J", "K", "AI", "AJ", "AK", "AL", "AM"),
@@ -44,10 +49,8 @@ if uploaded_file:
             continue
 
         codigos = df.iloc[:, 0].astype(str).str.strip()
-        df_buenas = df.iloc[:, idx_buenas].apply(pd.to_numeric, errors='coerce').fillna(0)
-        df_malas = df.iloc[:, idx_malas].apply(pd.to_numeric, errors='coerce').fillna(0) if idx_malas else pd.DataFrame(0, index=df.index, columns=["empty"])
-        buenas = df_buenas.sum(axis=1).astype(int)
-        malas = df_malas.sum(axis=1).astype(int)
+        buenas = df.iloc[:, idx_buenas].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1)
+        malas = df.iloc[:, idx_malas].apply(pd.to_numeric, errors="coerce").fillna(0).sum(axis=1) if idx_malas else pd.Series([0]*len(df))
 
         data = pd.DataFrame({
             "Codigo": codigos,
@@ -64,7 +67,7 @@ if uploaded_file:
         resumen_total.append(data)
 
     if not resumen_total:
-        st.warning("No se encontraron técnicos con datos válidos.")
+        st.warning("⚠️ No se encontraron técnicos con datos válidos.")
         st.stop()
 
     final_df = pd.concat(resumen_total, ignore_index=True)
@@ -74,10 +77,10 @@ if uploaded_file:
 
     for tecnico in final_df["Técnico"].unique():
         df_tecnico = final_df[final_df["Técnico"] == tecnico]
-        total_buenas = int(df_tecnico["Unidades Buenas"].sum())
-        total_picking = int(df_tecnico["Unidades Sobrantes"].sum())
-        total_def = int(df_tecnico["Unidades Defectuosas"].sum())
-        total_cajas = int(df_tecnico["Cajas Completas"].sum())
+        total_buenas = df_tecnico["Unidades Buenas"].sum()
+        total_picking = df_tecnico["Unidades Sobrantes"].sum()
+        total_defectuosas = df_tecnico["Unidades Defectuosas"].sum()
+        cajas_completas = df_tecnico["Cajas Completas"].sum()
 
         st.markdown(f"#### Técnico: **{tecnico}**")
         col1, col2 = st.columns([1, 3])
@@ -93,8 +96,8 @@ if uploaded_file:
             st.pyplot(fig)
 
         with col2:
-            st.metric("Unidades Buenas", total_buenas)
-            st.metric("Unidades a Picking", total_picking)
-            st.metric("Cajas Completas", total_cajas)
-            st.metric("Unidades Defectuosas", total_def)
-            st.metric("Total General", total_buenas + total_def)
+            st.metric("Unidades Buenas", int(total_buenas))
+            st.metric("Unidades a Picking", int(total_picking))
+            st.metric("Cajas Completas", int(cajas_completas))
+            st.metric("Unidades Defectuosas", int(total_defectuosas))
+            st.metric("Total General", int(total_buenas + total_defectuosas))
